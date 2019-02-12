@@ -28,7 +28,20 @@ class HandshakeFailure(BaseP2PError):
     """
     Raised when the protocol handshake was unsuccessful.
     """
-    pass
+    # when this error occurs don't try to talk to the remote for x seconds
+    timeout = 10
+
+
+class WrongNetworkFailure(HandshakeFailure):
+    timeout = 60 * 60 * 24  # one day
+
+
+class WrongGenesisFailure(HandshakeFailure):
+    timeout = 60 * 60 * 24  # one day
+
+
+class TooManyPeersFailure(HandshakeFailure):
+    timeout = 60  # one minute
 
 
 class MalformedMessage(BaseP2PError):

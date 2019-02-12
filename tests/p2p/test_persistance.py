@@ -133,7 +133,10 @@ def test_timeout_works(monkeypatch):
     peer_info.record_failure(node, 10, 'no-reason')
     assert peer_info.can_connect_to(node) is False
 
-    current_time += datetime.timedelta(seconds=11)
+    current_time += datetime.timedelta(seconds=1)
+    assert peer_info.can_connect_to(node) is False
+
+    current_time += datetime.timedelta(seconds=10)
     assert peer_info.can_connect_to(node) is True
 
 

@@ -255,8 +255,9 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if remote in self.connected_nodes:
             self.logger.debug("Skipping %s; already connected to it", remote)
             return None
+        if not self.peer_info.can_connect_to(remote):
+            return None
         expected_exceptions = (
-            HandshakeFailure,
             PeerConnectionLost,
             TimeoutError,
             UnreachablePeer,
@@ -283,6 +284,11 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
             self.logger.error('Got malformed response from %r during handshake', remote)
             # dump the full stacktrace in the debug logs
             self.logger.debug('Got malformed response from %r', remote, exc_info=True)
+        except HandshakeFailure as e:
+            self.logger.debug("Could not complete handshake with %r: %s", remote, repr(e))
+            self.peer_info.record_failure(
+                remote, timeout=e.timeout, reason=type(e).__name__
+            )
         except expected_exceptions as e:
             self.logger.debug("Could not complete handshake with %r: %s", remote, repr(e))
         except Exception:

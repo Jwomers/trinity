@@ -86,10 +86,16 @@ class SQLPeerInfoPersistance(BasePeerInfoPersistance):
         if row:
             new_error_count = row['error_count'] + 1
             usable_time = now + datetime.timedelta(seconds=timeout * new_error_count)
+            self.logger.debug(
+                '%s will not be retried until %s because %s', remote, usable_time, reason
+            )
             self._update_node(enode, usable_time, reason, new_error_count)
             return
 
         usable_time = now + datetime.timedelta(seconds=timeout)
+        self.logger.debug(
+            '%s will not be retried until %s because %s', remote, usable_time, reason
+        )
         self._insert_node(enode, usable_time, reason, error_count=1)
 
     @must_be_open
@@ -101,6 +107,10 @@ class SQLPeerInfoPersistance(BasePeerInfoPersistance):
 
         until = str_to_time(row['until'])
         if current_time() < until:
+            self.logger.debug(
+                'skipping %s, it failed because "%s" and is not usable until %s',
+                remote, row['reason'], row['until']
+            )
             return False
 
         return True
