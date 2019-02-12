@@ -60,6 +60,10 @@ from p2p.peer import (
     PeerMessage,
     PeerSubscriber,
 )
+from p2p.persistance import (
+    BasePeerInfoPersistance,
+    NoopPeerInfoPersistance,
+)
 from p2p.p2p_proto import (
     DisconnectReason,
 )
@@ -79,10 +83,15 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
                  privkey: datatypes.PrivateKey,
                  context: BasePeerContext,
                  max_peers: int = DEFAULT_MAX_PEERS,
+                 peer_info: BasePeerInfoPersistance = None,
                  token: CancelToken = None,
                  event_bus: Endpoint = None
                  ) -> None:
         super().__init__(token)
+
+        if not peer_info:
+            peer_info = NoopPeerInfoPersistance()
+        self.peer_info = peer_info
 
         self.privkey = privkey
         self.max_peers = max_peers
