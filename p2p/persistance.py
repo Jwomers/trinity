@@ -1,19 +1,70 @@
+import abc
+import datetime
+import functools
 from pathlib import Path
 import sqlite3
+from typing import Any, Callable, TypeVar, cast
 
 from eth.tools.logging import ExtendedDebugLogger
 
+from p2p.kademlia import Node
 
-class BasePeerInfoPersistance:
+
+# a top-level function so it can be easily mocked
+def current_time() -> datetime.datetime:
+    return datetime.datetime.utcnow()
+
+
+def time_to_str(time: datetime.datetime) -> str:
+    return time.isoformat(timespec='seconds')
+
+
+def str_to_time(as_str: str) -> datetime.datetime:
+    # use datetime.datetime.fromisoformat once support for 3.6 is dropped
+    return datetime.datetime.strptime(as_str, "%Y-%m-%dT%H:%M:%S")
+
+
+class BasePeerInfoPersistance(abc.ABC):
     def __init__(self, logger: ExtendedDebugLogger) -> None:
         if logger:
             logger = logger.getChild('PeerInfo')
         self.logger = logger
 
+    @abc.abstractmethod
+    def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
+        raise NotImplemented()
+
+    @abc.abstractmethod
+    def can_connect_to(self, remote: Node) -> bool:
+        raise NotImplemented()
+
 
 class NoopPeerInfoPersistance(BasePeerInfoPersistance):
     def __init__(self) -> None:
         super().__init__(None)
+
+    def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
+        pass
+
+    def can_connect_to(self, remote: Node) -> bool:
+        return True
+
+
+class ClosedException(Exception):
+    # methods of SQLPeerInfoPersistance cannot be called after it's been closed
+    pass
+
+
+T = TypeVar('T', bound=Callable[..., Any])
+
+
+def must_be_open(func: T) -> T:
+    @functools.wraps(func)
+    def run(self: 'SQLPeerInfoPersistance', *args: Any, **kwargs: Any) -> Any:
+        if self.closed:
+            raise ClosedException()
+        return func(self, *args, **kwargs)
+    return cast(T, run)
 
 
 class SQLPeerInfoPersistance(BasePeerInfoPersistance):
@@ -27,14 +78,76 @@ class SQLPeerInfoPersistance(BasePeerInfoPersistance):
         self.db.row_factory = sqlite3.Row
         self.setup_schema()
 
+    @must_be_open
+    def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
+        enode = remote.uri()
+        row = self._fetch_node(remote)
+        now = current_time()
+        if row:
+            new_error_count = row['error_count'] + 1
+            usable_time = now + datetime.timedelta(seconds=timeout * new_error_count)
+            self._update_node(enode, usable_time, reason, new_error_count)
+            return
+
+        usable_time = now + datetime.timedelta(seconds=timeout)
+        self._insert_node(enode, usable_time, reason, error_count=1)
+
+    @must_be_open
+    def can_connect_to(self, remote: Node) -> bool:
+        row = self._fetch_node(remote)
+
+        if not row:
+            return True
+
+        until = str_to_time(row['until'])
+        if current_time() < until:
+            return False
+
+        return True
+
+    def _fetch_node(self, remote: Node) -> sqlite3.Row:
+        enode = remote.uri()
+        cursor = self.db.execute('SELECT * from bad_nodes WHERE enode = ?', (enode,))
+        return cursor.fetchone()
+
+    def _insert_node(self,
+                     enode: str,
+                     until: datetime.datetime,
+                     reason: str,
+                     error_count: int) -> None:
+        with self.db:
+            self.db.execute(
+                '''
+                INSERT INTO bad_nodes (enode, until, reason, error_count)
+                VALUES (?, ?, ?, ?)
+                ''',
+                (enode, time_to_str(until), reason, error_count),
+            )
+
+    def _update_node(self,
+                     enode: str,
+                     until: datetime.datetime,
+                     reason: str,
+                     error_count: int) -> None:
+        with self.db:
+            self.db.execute(
+                '''
+                UPDATE bad_nodes
+                SET until = ?, reason = ?, error_count = ?
+                WHERE enode = ?
+                ''',
+                (time_to_str(until), reason, error_count, enode),
+            )
+
     def close(self) -> None:
         self.closed = True
         self.db.close()
         self.db = None
 
+    @must_be_open
     def setup_schema(self) -> None:
         try:
-            if self._schema_is_already_created():
+            if self._schema_already_created():
                 return
         except Exception:
             self.db.close()
@@ -42,13 +155,11 @@ class SQLPeerInfoPersistance(BasePeerInfoPersistance):
             raise
 
         with self.db:
-            self.db.execute('create table bad_nodes (enode, until, reason, error_count, kwargs)')
-            self.db.execute('create table good_nodes (enode)')
-            self.db.execute('create table events (enode, event, kwargs)')
+            self.db.execute('create table bad_nodes (enode, until, reason, error_count)')
             self.db.execute('create table schema_version (version)')
             self.db.execute('insert into schema_version VALUES (1)')
 
-    def _schema_is_already_created(self) -> bool:
+    def _schema_already_created(self) -> bool:
         "Inspects the database to see if the expected tables already exist"
 
         count = self.db.execute("""
