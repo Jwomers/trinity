@@ -37,7 +37,7 @@ class FullNode(Node):
     def get_p2p_server(self) -> FullServer:
         if self._p2p_server is None:
             manager = self.db_manager
-            peer_info = SQLPeerInfoPersistence(self._nodedb_path, self.logger)
+            peer_info = SQLitePeerInfoPersistence(self._nodedb_path, self.logger)
             self._p2p_server = FullServer(
                 privkey=self._node_key,
                 port=self._node_port,
