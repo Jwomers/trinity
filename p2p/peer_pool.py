@@ -253,7 +253,7 @@ class BasePeerPool(BaseService, AsyncIterable[BasePeer]):
         if remote in self.connected_nodes:
             self.logger.debug("Skipping %s; already connected to it", remote)
             return None
-        if not self.peer_info.can_connect_to(remote):
+        if not self.peer_info.should_connect_to(remote):
             return None
         expected_exceptions = (
             PeerConnectionLost,

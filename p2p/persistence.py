@@ -5,7 +5,7 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Callable, TypeVar, cast
 
-from eth.tools.logging import ExtendedDebugLogger
+from trinity._utils.logging import HasExtendedDebugLogger
 
 from p2p.kademlia import Node
 
@@ -24,29 +24,21 @@ def str_to_time(as_str: str) -> datetime.datetime:
     return datetime.datetime.strptime(as_str, "%Y-%m-%dT%H:%M:%S")
 
 
-class BasePeerInfoPersistence(ABC):
-    def __init__(self, logger: ExtendedDebugLogger) -> None:
-        if logger:
-            logger = logger.getChild('PeerInfo')
-        self.logger = logger
-
+class BasePeerInfoPersistence(ABC, HasExtendedDebugLogger):
     @abstractmethod
     def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
         pass
 
     @abstractmethod
-    def can_connect_to(self, remote: Node) -> bool:
+    def should_connect_to(self, remote: Node) -> bool:
         pass
 
 
 class NoopPeerInfoPersistence(BasePeerInfoPersistence):
-    def __init__(self) -> None:
-        super().__init__(None)
-
     def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
         pass
 
-    def can_connect_to(self, remote: Node) -> bool:
+    def should_connect_to(self, remote: Node) -> bool:
         return True
 
 
@@ -60,16 +52,15 @@ T = TypeVar('T', bound=Callable[..., Any])
 
 def must_be_open(func: T) -> T:
     @functools.wraps(func)
-    def run(self: 'SQLitePeerInfoPersistence', *args: Any, **kwargs: Any) -> Any:
+    def wrapper(self: 'SQLitePeerInfoPersistence', *args: Any, **kwargs: Any) -> Any:
         if self.closed:
             raise ClosedException()
         return func(self, *args, **kwargs)
-    return cast(T, run)
+    return cast(T, wrapper)
 
 
 class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
-    def __init__(self, path: Path, logger: ExtendedDebugLogger) -> None:
-        super().__init__(logger)
+    def __init__(self, path: Path) -> None:
         self.path = path
         self.closed = False
 
@@ -77,6 +68,9 @@ class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
         self.db = sqlite3.connect(str(self.path))
         self.db.row_factory = sqlite3.Row
         self.setup_schema()
+
+    def __str__(self) -> str:
+        return f'<SQLitePeerInfo({self.path})>'
 
     @must_be_open
     def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
@@ -99,7 +93,7 @@ class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
         self._insert_node(enode, usable_time, reason, error_count=1)
 
     @must_be_open
-    def can_connect_to(self, remote: Node) -> bool:
+    def should_connect_to(self, remote: Node) -> bool:
         row = self._fetch_node(remote)
 
         if not row:
@@ -160,8 +154,7 @@ class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
             if self._schema_already_created():
                 return
         except Exception:
-            self.db.close()
-            self.closed = True
+            self.close()
             raise
 
         with self.db:
@@ -202,5 +195,8 @@ class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
 
 
 class MemoryPeerInfoPersistence(SQLitePeerInfoPersistence):
-    def __init__(self, logger: ExtendedDebugLogger) -> None:
-        super().__init__(Path(":memory:"), logger)
+    def __init__(self) -> None:
+        super().__init__(Path(":memory:"))
+
+    def __str__(self) -> str:
+        return '<MemoryPeerInfo()>'

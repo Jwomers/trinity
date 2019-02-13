@@ -15,6 +15,11 @@ SQLitePeerInfoPersistence = persistence.SQLitePeerInfoPersistence
 MemoryPeerInfoPersistence = persistence.MemoryPeerInfoPersistence
 
 
+def test_has_str():
+    peer_info = SQLitePeerInfoPersistence('file.db')
+    assert str(peer_info) == '<SQLitePeerInfo(file.db)>'
+
+
 @pytest.fixture
 def temp_path():
     with tempfile.TemporaryDirectory() as tmpdirname:
@@ -23,20 +28,18 @@ def temp_path():
 
 def test_reads_schema(temp_path):
     dbpath = temp_path / "nodedb"
-    logger = logging.getLogger('PeerInfo')
 
     # this will setup the tables
-    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath)
     peer_info.close()
 
     # this runs a quick check that the tables were setup
-    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath)
     peer_info.close()
 
 
 def test_fails_when_schema_version_is_not_1(temp_path):
     dbpath = temp_path / "nodedb"
-    logger = logging.getLogger('PeerInfo')
 
     db = sqlite3.connect(str(dbpath))
     db.execute('CREATE TABLE schema_version (version)')
@@ -44,7 +47,7 @@ def test_fails_when_schema_version_is_not_1(temp_path):
 
     # there's no version information!
     with pytest.raises(Exception):
-        SQLitePeerInfoPersistence(dbpath, logger)
+        SQLitePeerInfoPersistence(dbpath)
 
     db = sqlite3.connect(str(dbpath))
     with db:
@@ -53,7 +56,7 @@ def test_fails_when_schema_version_is_not_1(temp_path):
 
     # version 2 is not supported!
     with pytest.raises(Exception):
-        SQLitePeerInfoPersistence(dbpath, logger)
+        SQLitePeerInfoPersistence(dbpath)
 
 
 def random_node():
@@ -63,15 +66,14 @@ def random_node():
 
 def test_records_failures():
     # where can you get a random pubkey from?
-    logger = logging.getLogger('PeerInfo')
-    peer_info = MemoryPeerInfoPersistence(logger)
+    peer_info = MemoryPeerInfoPersistence()
 
     node = random_node()
-    assert peer_info.can_connect_to(node) is True
+    assert peer_info.should_connect_to(node) is True
 
     peer_info.record_failure(node, 10, 'no-reason')
 
-    assert peer_info.can_connect_to(node) is False
+    assert peer_info.should_connect_to(node) is False
 
     # And just to make sure, check that it's been saved to the db
     db = peer_info.db
@@ -83,41 +85,38 @@ def test_records_failures():
 
 
 def test_memory_does_not_persist():
-    logger = logging.getLogger('PeerInfo')
     node = random_node()
 
-    peer_info = MemoryPeerInfoPersistence(logger)
-    assert peer_info.can_connect_to(node) is True
+    peer_info = MemoryPeerInfoPersistence()
+    assert peer_info.should_connect_to(node) is True
     peer_info.record_failure(node, 10, 'no-reason')
-    assert peer_info.can_connect_to(node) is False
+    assert peer_info.should_connect_to(node) is False
     peer_info.close()
 
     # open a second instance
-    peer_info = MemoryPeerInfoPersistence(logger)
+    peer_info = MemoryPeerInfoPersistence()
     # the second instance has no memory of the failure
-    assert peer_info.can_connect_to(node) is True
+    assert peer_info.should_connect_to(node) is True
 
 
 def test_sql_does_persist(temp_path):
     dbpath = temp_path / "nodedb"
-    logger = logging.getLogger('PeerInfo')
     node = random_node()
 
-    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
-    assert peer_info.can_connect_to(node) is True
+    peer_info = SQLitePeerInfoPersistence(dbpath)
+    assert peer_info.should_connect_to(node) is True
     peer_info.record_failure(node, 10, 'no-reason')
-    assert peer_info.can_connect_to(node) is False
+    assert peer_info.should_connect_to(node) is False
     peer_info.close()
 
     # open a second instance
-    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath)
     # the second instance remembers the failure
-    assert peer_info.can_connect_to(node) is False
+    assert peer_info.should_connect_to(node) is False
     peer_info.close()
 
 
 def test_timeout_works(monkeypatch):
-    logger = logging.getLogger('PeerInfo')
     node = random_node()
 
     current_time = datetime.datetime.utcnow()
@@ -127,22 +126,21 @@ def test_timeout_works(monkeypatch):
 
     monkeypatch.setattr(persistence, 'current_time', get_time)
 
-    peer_info = MemoryPeerInfoPersistence(logger)
-    assert peer_info.can_connect_to(node) is True
+    peer_info = MemoryPeerInfoPersistence()
+    assert peer_info.should_connect_to(node) is True
 
     peer_info.record_failure(node, 10, 'no-reason')
-    assert peer_info.can_connect_to(node) is False
+    assert peer_info.should_connect_to(node) is False
 
     current_time += datetime.timedelta(seconds=1)
-    assert peer_info.can_connect_to(node) is False
+    assert peer_info.should_connect_to(node) is False
 
     current_time += datetime.timedelta(seconds=10)
-    assert peer_info.can_connect_to(node) is True
+    assert peer_info.should_connect_to(node) is True
 
 
 def test_fails_when_closed():
-    logger = logging.getLogger('PeerInfo')
-    peer_info = MemoryPeerInfoPersistence(logger)
+    peer_info = MemoryPeerInfoPersistence()
     peer_info.close()
 
     node = random_node()
