@@ -10,11 +10,6 @@ from trinity._utils.logging import HasExtendedDebugLogger
 from p2p.kademlia import Node
 
 
-# a top-level function so it can be easily mocked
-def current_time() -> datetime.datetime:
-    return datetime.datetime.utcnow()
-
-
 def time_to_str(time: datetime.datetime) -> str:
     return time.isoformat(timespec='seconds')
 
@@ -76,7 +71,7 @@ class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
     def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
         enode = remote.uri()
         row = self._fetch_node(remote)
-        now = current_time()
+        now = datetime.datetime.utcnow()
         if row:
             new_error_count = row['error_count'] + 1
             usable_time = now + datetime.timedelta(seconds=timeout * new_error_count)
@@ -100,7 +95,7 @@ class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
             return True
 
         until = str_to_time(row['until'])
-        if current_time() < until:
+        if datetime.datetime.utcnow() < until:
             self.logger.debug(
                 'skipping %s, it failed because "%s" and is not usable until %s',
                 remote, row['reason'], row['until']

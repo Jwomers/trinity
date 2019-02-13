@@ -122,10 +122,12 @@ def test_timeout_works(monkeypatch):
 
     current_time = datetime.datetime.utcnow()
 
-    def get_time():
-        return current_time
+    class patched_datetime(datetime.datetime):
+        @classmethod
+        def utcnow(cls):
+            return current_time
 
-    monkeypatch.setattr(persistence, 'current_time', get_time)
+    monkeypatch.setattr(datetime, 'datetime', patched_datetime)
 
     peer_info = MemoryPeerInfoPersistence()
     assert peer_info.should_connect_to(node) is True
