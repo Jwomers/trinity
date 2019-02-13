@@ -3,7 +3,7 @@ from typing import Type
 from lahja import Endpoint
 
 from p2p.peer_pool import BasePeerPool
-from p2p.persistence import SQLPeerInfoPersistence
+from p2p.persistence import SQLitePeerInfoPersistence
 
 from trinity.chains.full import FullChain
 from trinity.config import TrinityConfig, Eth1AppConfig
