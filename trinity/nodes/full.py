@@ -3,7 +3,7 @@ from typing import Type
 from lahja import Endpoint
 
 from p2p.peer_pool import BasePeerPool
-from p2p.persistance import SQLPeerInfoPersistance
+from p2p.persistence import SQLPeerInfoPersistence
 
 from trinity.chains.full import FullChain
 from trinity.config import TrinityConfig, Eth1AppConfig
@@ -37,7 +37,7 @@ class FullNode(Node):
     def get_p2p_server(self) -> FullServer:
         if self._p2p_server is None:
             manager = self.db_manager
-            peer_info = SQLPeerInfoPersistance(self._nodedb_path, self.logger)
+            peer_info = SQLPeerInfoPersistence(self._nodedb_path, self.logger)
             self._p2p_server = FullServer(
                 privkey=self._node_key,
                 port=self._node_port,

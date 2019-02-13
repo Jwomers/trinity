@@ -1,4 +1,4 @@
-import abc
+from abc import ABC, abstractmethod
 import datetime
 import functools
 from pathlib import Path
@@ -24,22 +24,22 @@ def str_to_time(as_str: str) -> datetime.datetime:
     return datetime.datetime.strptime(as_str, "%Y-%m-%dT%H:%M:%S")
 
 
-class BasePeerInfoPersistance(abc.ABC):
+class BasePeerInfoPersistence(ABC):
     def __init__(self, logger: ExtendedDebugLogger) -> None:
         if logger:
             logger = logger.getChild('PeerInfo')
         self.logger = logger
 
-    @abc.abstractmethod
+    @abstractmethod
     def record_failure(self, remote: Node, timeout: int, reason: str) -> None:
-        raise NotImplemented()
+        pass
 
-    @abc.abstractmethod
+    @abstractmethod
     def can_connect_to(self, remote: Node) -> bool:
-        raise NotImplemented()
+        pass
 
 
-class NoopPeerInfoPersistance(BasePeerInfoPersistance):
+class NoopPeerInfoPersistence(BasePeerInfoPersistence):
     def __init__(self) -> None:
         super().__init__(None)
 
@@ -51,7 +51,7 @@ class NoopPeerInfoPersistance(BasePeerInfoPersistance):
 
 
 class ClosedException(Exception):
-    # methods of SQLPeerInfoPersistance cannot be called after it's been closed
+    # methods of SQLPeerInfoPersistence cannot be called after it's been closed
     pass
 
 
@@ -60,14 +60,14 @@ T = TypeVar('T', bound=Callable[..., Any])
 
 def must_be_open(func: T) -> T:
     @functools.wraps(func)
-    def run(self: 'SQLPeerInfoPersistance', *args: Any, **kwargs: Any) -> Any:
+    def run(self: 'SQLPeerInfoPersistence', *args: Any, **kwargs: Any) -> Any:
         if self.closed:
             raise ClosedException()
         return func(self, *args, **kwargs)
     return cast(T, run)
 
 
-class SQLPeerInfoPersistance(BasePeerInfoPersistance):
+class SQLPeerInfoPersistence(BasePeerInfoPersistence):
     def __init__(self, path: Path, logger: ExtendedDebugLogger) -> None:
         super().__init__(logger)
         self.path = path
@@ -201,6 +201,6 @@ class SQLPeerInfoPersistance(BasePeerInfoPersistance):
         return True
 
 
-class MemoryPeerInfoPersistance(SQLPeerInfoPersistance):
+class MemoryPeerInfoPersistence(SQLPeerInfoPersistence):
     def __init__(self, logger: ExtendedDebugLogger) -> None:
         super().__init__(Path(":memory:"), logger)

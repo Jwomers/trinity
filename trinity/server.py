@@ -48,7 +48,7 @@ from p2p.p2p_proto import (
     DisconnectReason,
 )
 from p2p.peer import BasePeer, PeerConnection
-from p2p.persistance import BasePeerInfoPersistance
+from p2p.persistence import BasePeerInfoPersistence
 from p2p.service import BaseService
 
 from trinity.chains.base import BaseAsyncChain
