@@ -11,7 +11,7 @@ from p2p import persistence
 
 
 # do it the long way to enable monkeypatching p2p.persistence.current_time
-SQLPeerInfoPersistence = persistence.SQLPeerInfoPersistence
+SQLitePeerInfoPersistence = persistence.SQLitePeerInfoPersistence
 MemoryPeerInfoPersistence = persistence.MemoryPeerInfoPersistence
 
 
@@ -26,11 +26,11 @@ def test_reads_schema(temp_path):
     logger = logging.getLogger('PeerInfo')
 
     # this will setup the tables
-    peer_info = SQLPeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
     peer_info.close()
 
     # this runs a quick check that the tables were setup
-    peer_info = SQLPeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
     peer_info.close()
 
 
@@ -44,7 +44,7 @@ def test_fails_when_schema_version_is_not_1(temp_path):
 
     # there's no version information!
     with pytest.raises(Exception):
-        SQLPeerInfoPersistence(dbpath, logger)
+        SQLitePeerInfoPersistence(dbpath, logger)
 
     db = sqlite3.connect(str(dbpath))
     with db:
@@ -53,7 +53,7 @@ def test_fails_when_schema_version_is_not_1(temp_path):
 
     # version 2 is not supported!
     with pytest.raises(Exception):
-        SQLPeerInfoPersistence(dbpath, logger)
+        SQLitePeerInfoPersistence(dbpath, logger)
 
 
 def random_node():
@@ -103,14 +103,14 @@ def test_sql_does_persist(temp_path):
     logger = logging.getLogger('PeerInfo')
     node = random_node()
 
-    peer_info = SQLPeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
     assert peer_info.can_connect_to(node) is True
     peer_info.record_failure(node, 10, 'no-reason')
     assert peer_info.can_connect_to(node) is False
     peer_info.close()
 
     # open a second instance
-    peer_info = SQLPeerInfoPersistence(dbpath, logger)
+    peer_info = SQLitePeerInfoPersistence(dbpath, logger)
     # the second instance remembers the failure
     assert peer_info.can_connect_to(node) is False
     peer_info.close()

@@ -51,7 +51,7 @@ class NoopPeerInfoPersistence(BasePeerInfoPersistence):
 
 
 class ClosedException(Exception):
-    # methods of SQLPeerInfoPersistence cannot be called after it's been closed
+    # methods of SQLitePeerInfoPersistence cannot be called after it's been closed
     pass
 
 
@@ -60,14 +60,14 @@ T = TypeVar('T', bound=Callable[..., Any])
 
 def must_be_open(func: T) -> T:
     @functools.wraps(func)
-    def run(self: 'SQLPeerInfoPersistence', *args: Any, **kwargs: Any) -> Any:
+    def run(self: 'SQLitePeerInfoPersistence', *args: Any, **kwargs: Any) -> Any:
         if self.closed:
             raise ClosedException()
         return func(self, *args, **kwargs)
     return cast(T, run)
 
 
-class SQLPeerInfoPersistence(BasePeerInfoPersistence):
+class SQLitePeerInfoPersistence(BasePeerInfoPersistence):
     def __init__(self, path: Path, logger: ExtendedDebugLogger) -> None:
         super().__init__(logger)
         self.path = path
@@ -150,9 +150,9 @@ class SQLPeerInfoPersistence(BasePeerInfoPersistence):
             )
 
     def close(self) -> None:
-        self.closed = True
         self.db.close()
         self.db = None
+        self.closed = True
 
     @must_be_open
     def setup_schema(self) -> None:
@@ -201,6 +201,6 @@ class SQLPeerInfoPersistence(BasePeerInfoPersistence):
         return True
 
 
-class MemoryPeerInfoPersistence(SQLPeerInfoPersistence):
+class MemoryPeerInfoPersistence(SQLitePeerInfoPersistence):
     def __init__(self, logger: ExtendedDebugLogger) -> None:
         super().__init__(Path(":memory:"), logger)
