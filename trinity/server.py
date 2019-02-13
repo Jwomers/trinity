@@ -83,7 +83,7 @@ class BaseServer(BaseService, Generic[TPeerPool]):
                  headerdb: BaseAsyncHeaderDB,
                  base_db: BaseAsyncDB,
                  network_id: int,
-                 peer_info: BasePeerInfoPersistance = None,
+                 peer_info: BasePeerInfoPersistence = None,
                  max_peers: int = DEFAULT_MAX_PEERS,
                  bootstrap_nodes: Tuple[Node, ...] = None,
                  preferred_nodes: Sequence[Node] = None,
