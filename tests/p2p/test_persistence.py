@@ -15,15 +15,16 @@ SQLitePeerInfoPersistence = persistence.SQLitePeerInfoPersistence
 MemoryPeerInfoPersistence = persistence.MemoryPeerInfoPersistence
 
 
-def test_has_str():
-    peer_info = SQLitePeerInfoPersistence('file.db')
-    assert str(peer_info) == '<SQLitePeerInfo(file.db)>'
-
-
 @pytest.fixture
 def temp_path():
     with tempfile.TemporaryDirectory() as tmpdirname:
         yield Path(tmpdirname)
+
+
+def test_has_str(temp_path):
+    dbpath = temp_path / "nodedb"
+    peer_info = SQLitePeerInfoPersistence(dbpath)
+    assert str(peer_info) == f'<SQLitePeerInfo({str(dbpath)})>'
 
 
 def test_reads_schema(temp_path):
